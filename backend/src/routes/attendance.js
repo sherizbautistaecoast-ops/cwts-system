@@ -184,9 +184,18 @@ router.delete('/date/:date', authenticateToken, requireAdmin, async (req, res) =
 });
 
 // Export attendance as CSV
-router.get('/export/:date', authenticateToken, async (req, res) => {
+router.get('/export/:date', async (req, res) => {
   try {
     const { date } = req.params;
+    const token = req.query.token;
+
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Verify token
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     const { data, error } = await supabase
       .from('attendance')

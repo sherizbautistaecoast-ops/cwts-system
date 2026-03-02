@@ -35,9 +35,12 @@ function AttendanceReport() {
     }
   };
 
-  const handleExport = (date) => {
-    const url = exportAttendance(date);
-    window.open(url, '_blank');
+  const handleExport = async (date) => {
+    const token = localStorage.getItem('token');
+    const url = `${import.meta.env.VITE_API_URL}/api/attendance/export/${date}`;
+  
+  // Open with authentication
+    window.open(`${url}?token=${token}`, '_blank');
   };
 
   return (
