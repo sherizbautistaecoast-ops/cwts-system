@@ -1,8 +1,9 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 
 function Dashboard() {
   const [user, setUser] = useState(null);
+  const navigate = useNavigate(); // 👈 add this
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -14,7 +15,7 @@ function Dashboard() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    window.location.href = '/login';
+    navigate('/login'); // 👈 use this instead
   };
 
   return (
