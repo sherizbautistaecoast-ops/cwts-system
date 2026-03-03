@@ -6,11 +6,13 @@ function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     
     try {
       const response = await login(username, password);
@@ -18,7 +20,16 @@ function Login() {
       localStorage.setItem('user', JSON.stringify(response.data.user));
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
+      console.error('Login error:', err);
+      if (err.response) {
+        setError(err.response.data?.error || 'Invalid username or password');
+      } else if (err.request) {
+        setError('Cannot connect to server. Please try again later.');
+      } else {
+        setError('Login failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -26,7 +37,7 @@ function Login() {
     <div className="login-page">
       <div className="container">
         <h1>CWTS Login</h1>
-        {error && <p className="error">{error}</p>}
+        {error && <p className="error" style={{ color: 'red', textAlign: 'center', marginBottom: '15px' }}>{error}</p>}
         <form onSubmit={handleSubmit}>
           <label>Username</label>
           <input 
@@ -34,6 +45,7 @@ function Login() {
             value={username} 
             onChange={(e) => setUsername(e.target.value)} 
             required 
+            disabled={loading}
           />
           <label>Password</label>
           <input 
@@ -41,8 +53,11 @@ function Login() {
             value={password} 
             onChange={(e) => setPassword(e.target.value)} 
             required 
+            disabled={loading}
           />
-          <button type="submit" className="button">Login</button>
+          <button type="submit" className="button" disabled={loading}>
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
         </form>
       </div>
     </div>

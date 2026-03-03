@@ -12,26 +12,33 @@ router.post('/login', async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password required' });
+      return res.status(400).json({ error: 'Username and password are required' });
     }
 
     const { data: users, error } = await supabase
       .from('users')
       .select('*')
       .eq('username', username)
-      .single();
+      .limit(1);
 
-    if (error || !users) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    if (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Server error' });
     }
 
-    const validPassword = await bcrypt.compare(password, users.password_hash);
+    if (!users || users.length === 0) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    const user = users[0];
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+    
     if (!validPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Invalid username or password' });
     }
 
     const token = jwt.sign(
-      { user_id: users.user_id, role: users.role, username: users.username },
+      { user_id: user.user_id, role: user.role, username: user.username },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -39,13 +46,14 @@ router.post('/login', async (req, res) => {
     res.json({ 
       token, 
       user: { 
-        user_id: users.user_id, 
-        username: users.username, 
-        role: users.role 
+        user_id: user.user_id, 
+        username: user.username, 
+        role: user.role 
       } 
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Login failed. Please try again.' });
   }
 });
 
@@ -61,13 +69,13 @@ router.get('/me', authenticateToken, async (req, res) => {
     if (error) throw error;
     res.json(user);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Failed to get user' });
   }
 });
 
-// Logout (client-side token removal, but we can track it)
+// Logout
 router.post('/logout', authenticateToken, async (req, res) => {
-  // In a production app, you might want to blacklist the token
   res.json({ message: 'Logged out successfully' });
 });
 
