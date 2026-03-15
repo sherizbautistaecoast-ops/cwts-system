@@ -1,17 +1,32 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { getStudentsGrouped, deleteStudent, restoreStudent, getDeletedStudents } from '../api';
 
 function Students() {
   const [groupedStudents, setGroupedStudents] = useState({});
   const [filter, setFilter] = useState('all');
+  const [courseFilter, setCourseFilter] = useState('all');
   const [showDeleted, setShowDeleted] = useState(false);
   const [deletedStudents, setDeletedStudents] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user'));
 
   useEffect(() => {
     loadStudents();
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const search = params.get('search');
+
+    if (search) {
+      setSearchTerm(search.toLowerCase());
+    } else {
+      setSearchTerm('');
+    }
+  }, [location.search]);
 
   const loadStudents = async () => {
     try {
@@ -55,14 +70,30 @@ function Students() {
 
   const groupOptions = ['all', ...Object.keys(groupedStudents)];
 
+  const getCourses = () => {
+    if (filter === 'all') return [];
+    const students = groupedStudents[filter] || [];
+    const courses = [...new Set(students.map(s => s.course))];
+    return courses;
+  };
+
   return (
     <div className="container">
       <h1>👨‍🎓 Students List</h1>
+
+      {searchTerm && (
+        <p style={{ marginBottom: "10px" }}>
+          🔍 Showing results for: <strong>{searchTerm}</strong>
+        </p>
+      )}
+
       <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
         <Link to="/" className="button back">⬅ Back to Dashboard</Link>
+
         {user?.role === 'admin' && (
           <Link to="/students/add" className="button">➕ Add Student</Link>
         )}
+
         <button
           onClick={() => {
             setShowDeleted(!showDeleted);
@@ -77,6 +108,7 @@ function Students() {
       {showDeleted ? (
         <div>
           <h2>Deleted Students</h2>
+
           {deletedStudents.length === 0 ? (
             <p>No deleted students.</p>
           ) : (
@@ -100,7 +132,10 @@ function Students() {
                     <td>{s.campus}</td>
                     <td>{new Date(s.deleted_at).toLocaleDateString()}</td>
                     <td>
-                      <button onClick={() => handleRestore(s.serial_no)} className="button">
+                      <button
+                        onClick={() => handleRestore(s.serial_no)}
+                        className="button"
+                      >
                         Restore
                       </button>
                     </td>
@@ -112,32 +147,78 @@ function Students() {
         </div>
       ) : (
         <>
-          <div style={{ marginBottom: '20px' }}>
-            <label><strong>Filter by Group: </strong></label>
-            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-              {groupOptions.map(key => (
-                <option key={key} value={key}>
-                  {key === 'all' ? 'All Groups' : key.replace(/\|/g, ' - ')}
-                </option>
-              ))}
-            </select>
+          <div style={{ marginBottom: '20px', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+
+            <div>
+              <label><strong>Filter by Group: </strong></label>
+              <select
+                value={filter}
+                onChange={(e) => {
+                  setFilter(e.target.value);
+                  setCourseFilter('all');
+                }}
+              >
+                {groupOptions.map(key => (
+                  <option key={key} value={key}>
+                    {key === 'all' ? 'All Groups' : key.replace(/\|/g, ' - ')}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {filter !== 'all' && (
+              <div>
+                <label><strong>Filter by Course: </strong></label>
+                <select
+                  value={courseFilter}
+                  onChange={(e) => setCourseFilter(e.target.value)}
+                >
+                  <option value="all">All Courses</option>
+                  {getCourses().map(course => (
+                    <option key={course} value={course}>
+                      {course}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
           </div>
 
           {Object.entries(groupedStudents)
             .filter(([key]) => filter === 'all' || key === filter)
             .map(([groupKey, students]) => {
+
               const [nstp, sy, campus] = groupKey.split('|');
+
+              const filteredStudents = students
+                .filter(s => courseFilter === 'all' || s.course === courseFilter)
+                .filter(student => {
+                  if (!searchTerm) return true;
+
+                  return (
+                    student.first_name.toLowerCase().includes(searchTerm) ||
+                    student.last_name.toLowerCase().includes(searchTerm) ||
+                    student.id_number.toLowerCase().includes(searchTerm)
+                  );
+                });
+
+              if (filteredStudents.length === 0) return null;
+
               return (
                 <div key={groupKey} style={{ marginBottom: '30px' }}>
                   <h3>📚 NSTP {nstp} - A.Y. {sy} - {campus} Campus</h3>
 
-                  {Object.entries(students.reduce((acc, s) => {
-                    if (!acc[s.course]) acc[s.course] = [];
-                    acc[s.course].push(s);
-                    return acc;
-                  }, {})).map(([course, courseStudents]) => (
+                  {Object.entries(
+                    filteredStudents.reduce((acc, s) => {
+                      if (!acc[s.course]) acc[s.course] = [];
+                      acc[s.course].push(s);
+                      return acc;
+                    }, {})
+                  ).map(([course, courseStudents]) => (
                     <div key={course} style={{ marginBottom: '20px' }}>
                       <h4 style={{ color: '#495057' }}>Course: {course}</h4>
+
                       <table>
                         <thead>
                           <tr>
@@ -147,12 +228,14 @@ function Students() {
                             {user?.role === 'admin' && <th>Actions</th>}
                           </tr>
                         </thead>
+
                         <tbody>
                           {courseStudents.map(student => (
                             <tr key={student.serial_no}>
                               <td>{student.id_number}</td>
                               <td>{student.last_name}, {student.first_name}</td>
                               <td>{student.academic_status || 'Active'}</td>
+
                               {user?.role === 'admin' && (
                                 <td>
                                   <Link
@@ -162,6 +245,7 @@ function Students() {
                                   >
                                     Edit
                                   </Link>
+
                                   <button
                                     onClick={() => handleDelete(student.serial_no)}
                                     className="button delete"
@@ -173,9 +257,11 @@ function Students() {
                             </tr>
                           ))}
                         </tbody>
+
                       </table>
                     </div>
                   ))}
+
                 </div>
               );
             })}
